@@ -1,11 +1,11 @@
 ---
 name: briefing
-description: Deliver a warm, crisp morning briefing — weather, calendar, urgent messages, one priority, and a signoff. Use when the user says "good morning", "morning briefing", "brief me", "gm", or anything signaling they want a snapshot of their day before it starts, even when phrased casually. The briefing is personal and tailored — don't substitute a generic day-planner response.
+description: Deliver a warm, crisp morning briefing for Jules — weather, calendar, urgent messages, one priority, and a signoff. Use this whenever the user says "good morning", "morning briefing", "brief me", "gm", or anything that signals she wants a snapshot of her day before it starts, even when phrased casually. The briefing is personal and tailored — don't substitute a generic day-planner response.
 ---
 
 # Morning briefing
 
-Produce a one-screen summary (<400 words, plain markdown) so the user can read it in ~30 seconds and feel caught up without opening Gmail, LinkedIn, or Slack.
+Produce a one-screen summary (<400 words, plain markdown) so Jules can read it in ~30 seconds and feel caught up without opening Gmail, LinkedIn, or Slack.
 
 ## Output shape
 
@@ -43,29 +43,29 @@ Good morning —
 Until tomorrow.
 ```
 
-Voice: warm, crisp. Short sentences. No filler, no hedging, no "I hope this helps." Write to the user, not about them.
+Voice: warm, crisp. Short sentences. No filler, no hedging, no "I hope this helps." Write to her, not about her.
 
 ## Data to gather
 
 Pull these in parallel when possible.
 
-1. **Weather** — user's city, in their preferred units. Use WebFetch or WebSearch. Get current temp, conditions, high/low, and chance of rain. Translate that into a real dressing cue — "grab a jacket," "wear layers," "sunglasses," "umbrella" — not just the numbers. The dressing cue is the point; the numbers support it.
+1. **Weather** — Brooklyn, NY, in °F. Fetch directly from `https://wttr.in/Brooklyn,NY?format=j1` via WebFetch — this returns structured JSON with current temp, conditions, high/low, and rain chance. Do not use WebSearch for weather; it aggregates sources and can return conflicting or wrong data. Parse `current_condition[0]` for current temp (`temp_F`) and description (`weatherDesc`), and `weather[0]` for the day's max/min (`maxtempF`/`mintempF`) and hourly rain chance. Translate into a real dressing cue — "grab a jacket," "wear layers," "sunglasses," "umbrella" — not just the numbers. The dressing cue is the point; the numbers support it.
 
-2. **Calendar** — today's events across *all* calendars, including any shared/sub calendars. Use the Google Calendar MCP. First call `list_calendars` to enumerate them, then `list_events` per calendar with `startTime` / `endTime` (ISO 8601 with timezone offset, e.g. `2026-04-23T00:00:00-04:00`) — the params are *not* `timeMin`/`timeMax`. Subcalendars that return no events today are genuinely empty; don't mention them in the output. For each event, decide whether it needs prep. Client calls, interviews, 1:1s, and presentations usually do; lunches, blocks, and recurring standups usually don't. Flag prep items inline, e.g. "2:00 — call with Acme (needs agenda)".
+2. **Calendar** — today's events across *all* calendars, including the "Jules & Andrew!" subcalendar. Use the Google Calendar MCP. First call `list_calendars` to enumerate them, then `list_events` per calendar with `startTime` / `endTime` (ISO 8601, with timezone offset, e.g. `2026-04-23T00:00:00-04:00`) — the params are *not* `timeMin`/`timeMax`. Subcalendars that return no events today are genuinely empty; don't mention them in the output. For each event, decide whether it needs prep. Client calls, interviews, 1:1s, and presentations usually do; lunches, blocks, and recurring standups usually don't. Flag prep items inline, e.g. "2:00 — call with Acme (needs agenda)".
 
-3. **Evening workout** — if the user has a fitness studio or class pattern, their workouts may land on their primary calendar via an auto-import task. **Check the calendar first**: look for any event today whose title/description mentions a known studio name, class type (pilates, yoga, flow, etc.), or studio address. Surface it with class + time + (location if useful). Only fall back to a Gmail search if nothing turns up on the calendar. If neither finds anything, write "none scheduled."
+3. **Evening workout** — workouts land on her primary Google Calendar because Paloga confirmation emails are auto-logged by a scheduled task (see `schedule-preferences.md`). So **check the calendar first**: look for any event today whose title or description mentions `paloga`, `flow`, `east river pilates`, `pilates`, `yoga`, or a studio address like `1161 Bedford`. Surface it with class + time + (location if useful). Only fall back to a Gmail search if nothing turns up on the calendar. If neither finds anything, write "none scheduled."
 
-4. **Urgent unreplied messages** — search Gmail from the last 12h. Use judgment, not keyword matching. The bar is: *would a thoughtful friend tell the user about this before they open their inbox?* Surface things directly addressed to them with a question, deadline-flagged ("today," "EOD," "by Thursday," quote expires in X hours), or from a real person who looks like they expect a reply.
+4. **Urgent unreplied messages** — search Gmail from the last 12h. Use judgment, not keyword matching. The bar is: *would a thoughtful friend tell her about this before she opens her inbox?* Surface things directly addressed to her with a question, deadline-flagged ("today," "EOD," "by Thursday," quote expires in X hours), or from a real person who looks like they expect a reply.
 
-   Skip automated senders entirely — Vercel/GitHub/CI notifications, marketing, newsletters, receipts, social notifications, calendar invites, out-of-office auto-replies, delivery updates. A simple test: if the sender domain is a bot/service and the message is templated, it doesn't count as "needs a reply" even when it sounds urgent ("deploy failed!!"). LinkedIn *message* notifications (someone sent a DM) do count — those are a real person reaching out. LinkedIn activity digests ("X liked your post") do not.
+   Skip automated senders entirely — Vercel/GitHub/CI notifications, marketing, newsletters, receipts, social notifications, calendar invites, out-of-office auto-replies, delivery updates. A simple test: if the sender domain is a bot/service and the message is templated, it doesn't count as "needs a reply" even when it sounds urgent ("deploy failed!!"). LinkedIn *message* notifications (someone sent Jules a DM) do count — those are a real person reaching out. LinkedIn activity digests ("X liked your post") do not.
 
    Show 1–3 items max, each as *sender — one-line gist*. If nothing urgent, write "Nothing urgent."
 
 5. **Arriving today** — search Gmail for delivery notifications indicating a package will arrive today. Look for phrases like "out for delivery," "arriving today," "delivering today," or "will be delivered" from carriers (UPS, FedEx, USPS, Amazon, OnTrac, etc.) and retailers. Show 1–3 items as *carrier/sender — item or order description*. If nothing, write "Nothing expected."
 
-6. **Career** — search Gmail from the last ~7 days for job outreach: recruiter emails, LinkedIn InMail notifications (someone reached out about a role), headhunter messages, or emails from real people or firms about a specific opportunity. Surface anything that looks like a genuine human reaching out about a role — even if it arrived a few days ago. Skip automated job-board digests ("Jobs you might like"), LinkedIn activity digests, and generic "we're hiring" marketing blasts. Show 1–3 items as *sender / company — role or gist*. If nothing new in the last 7 days, write "Nothing new."
+6. **Career** — search Gmail from the last ~7 days for job outreach: recruiter emails, LinkedIn InMail notifications (someone reached out about a role), headhunter messages, or emails from real people or firms about a specific opportunity. Jules is actively interested in career development, so surface anything that looks like a genuine human reaching out about a role — even if it arrived a few days ago. Skip automated job-board digests ("Jobs you might like"), LinkedIn activity digests, and generic "we're hiring" marketing blasts. Show 1–3 items as *sender / company — role or gist*. If nothing new in the last 7 days, write "Nothing new."
 
-7. **Body (one health-supportive cue)** — weave health into the routine with one concrete, specific line. Shape it to the day's context — weather, workout, calendar — not generic wellness advice. Pick whichever angle is strongest:
+8. **Body (one health-supportive cue)** — Jules cares about weaving health into her routine every day, so this section always appears with one concrete, specific line. Shape it to the day's context — weather, workout, calendar — not generic wellness advice. Pick whichever angle is strongest:
 
    - **Pre/post-workout cue** when a class is scheduled — hydration, fuel timing, recovery note.
    - **Outdoor/movement prompt** when the weather invites it or the day is light on movement — e.g., "walk the returns drop if you can," "pair lunch with a loop around the block."
@@ -73,16 +73,16 @@ Pull these in parallel when possible.
    - **Hydration/sleep/fuel** cue when the day's rhythm calls for it.
    - **Mental reset** (short meditation, phone-down window, journal prompt) when nothing else fits.
 
-   One line. Specific, warm, tied to something real in the user's day. Avoid anything that sounds like it came from a wellness app ("remember to hydrate!", "self-care is key"). If you can't generate one that's genuinely useful and specific, write "Take one outside break today — even five minutes counts." as a fallback.
+   One line. Specific, warm, tied to something real in her day. Avoid anything that sounds like it came from a wellness app ("remember to hydrate!", "self-care is key"). If you can't generate one that's genuinely useful and specific, write "Take one outside break today — even five minutes counts." as a fallback.
 
-8. **Heads up (time-sensitive threads, any age)** — scan Gmail from the last ~7 days for threads that are still *active and time-sensitive today*, regardless of when they arrived. Examples: a quote that expires in the next ~72h, an RSVP not yet sent, a deadline approaching this week, a reservation hold about to release. The distinguishing signal vs. "Needs a reply" is age: these items are older than 12h but still require action soon.
+9. **Heads up (time-sensitive threads, any age)** — scan Gmail from the last ~7 days for threads that are still *active and time-sensitive today*, regardless of when they arrived. Examples: a quote that expires in the next ~72h, an RSVP she hasn't sent, a deadline approaching this week, a reservation hold about to release. The distinguishing signal vs. "Needs a reply" is age: these items are older than 12h but still require action soon.
 
    Keep it to 1–2 items max, each one line. If nothing qualifies, **omit the entire "Heads up" section from the output** — don't write "Nothing pending." Empty means the section disappears.
 
-9. **First thing to tackle** — pick in this order:
-   1. Most urgent item from the user's reminders/to-do file (if one exists — see Context files).
-   2. Prep for the earliest meeting today that needs it.
-   3. Your gut-call judgment, weighing calendar + reminders + urgent messages.
+10. **First thing to tackle** — pick in this order:
+   1. Most urgent item from `~/Desktop/context/Admin/reminders.md`
+   2. Prep for the earliest meeting today that needs it
+   3. Your gut-call judgment, weighing calendar + reminders + urgent messages
 
 ## Guardrails
 
@@ -91,11 +91,11 @@ Pull these in parallel when possible.
 - **Word budget**: stay under 400 words total. If sections bloat, trim — fewer words per item, not fewer sections.
 - **No meta**: don't describe the data sources, the process, or that you're following a skill. This is the briefing itself.
 
-## Context files (optional)
+## Context files
 
-If the user maintains these files, read them for richer context:
+- `~/Desktop/context/Admin/reminders.md` — Jules's to-do list, organized by category and urgency. Read it for the "first thing to tackle" logic.
+- `~/Desktop/context/Admin/schedule-preferences.md` — how she likes her day structured. Read if it exists; skip if not.
 
-- A reminders/to-do file (e.g. `~/reminders.md`) — used for "first thing to tackle" logic.
-- A schedule-preferences file (e.g. `~/schedule-preferences.md`) — how the user likes their day structured.
+## Delivery
 
-Configure the paths by editing this skill or via your CLAUDE.md.
+For v1, deliver the briefing inline in chat. (Email delivery to YOUR_EMAIL@gmail.com is the eventual target but isn't wired up yet.)
